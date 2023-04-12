@@ -15,6 +15,9 @@ $q->execute(array($spider_name));
 
 foreach ($q as $row) {
 
+    $fullAddress = '';
+    $primaryAddress = '';
+
     $data = fetch($row['url']);
     $html = str_get_html($data);
 
@@ -41,33 +44,31 @@ foreach ($q as $row) {
             $values['phone_numbers'] = json_encode(array($pData[5]));
         }
 
-        if(!empty($vCard->adr['StreetAddress']))
-        {
-            $address = $vCard->adr['StreetAddress']; } else { $address = '';
+        if(!empty($vCard->adr['StreetAddress'])) { $fullAddress = $vCard->adr['StreetAddress']; }
+
+        if(!empty($vCard->adr['Locality'])) {
+            $fullAddress .= ', '.$vCard->adr['Locality'];
         }
 
-        if(!empty($vCard->adr['Locality']))
-        {
-            $city = $vCard->adr['Locality']; } else { $city = '';
+        if(!empty($vCard->adr['Region'])) {
+            $fullAddress .= ', '.$vCard->adr['Region'];
         }
 
-        if(!empty($vCard->adr['Region']))
-        {
-            $state = $vCard->adr['Region']; } else { $state = '';
-        }
+        if(!empty($vCard->adr['PostalCode'])) { $fullAddress .= ', '.$vCard->adr['PostalCode']; }
 
-        if(!empty($vCard->adr['PostalCode']))
-        {
-            $postalCode = $vCard->adr['PostalCode']; } else { $postalCode = '';
-        }
-
-        if(!empty($vCard->adr['Country']))
-        {
-            $country = $vCard->adr['Country']; } else { $country = '';
-        }
+        if(!empty($vCard->adr['Country'])) { $fullAddress .= ', '.$vCard->adr['Country']; }
 
         $education = array();
-        $education[] = trim($html->find('.rte-content', 2)->plaintext);
+        foreach($html->find('.section-right__section') as $item)
+        {
+            if($item->find('h4', 0)->plaintext == 'Academic')
+            {
+                foreach($item->find('.rte-content p') as $item)
+                {
+                    $education[] = $item->plaintext;
+                }
+            }
+        }
 
         $bar_admissions = array();
         $court_admissions = array();
@@ -99,13 +100,22 @@ foreach ($q as $row) {
             $image = '';
         }
 
-        $values['description'] = trim($html->find('.intro-text', 0)->plaintext.' '.$html->find('.content.rte-content', 0)->plaintext);
 
-        foreach($education as $item)
+        if($html->find('.intro-text', 0)->plaintext)
         {
-            if(strpos(preg_replace('/[^A-Za-z0-9\-]/', '', $item), 'JD') !== false)
+            $values['description'] = trim($html->find('.intro-text', 0)->plaintext.' '.$html->find('.content.rte-content', 0)->plaintext);
+        }
+        else
+        {
+            $values['description'] = '';
+        }
+
+        foreach($education as $value)
+        {
+            $school = strtolower(preg_replace('/[^A-Za-z0-9\-]/', ' ', $value));
+            if(strpos($school, 'jd') !== false || strpos($school, 'doctor') !== false)
             {
-                $law_school = $item;
+                $law_school = $value;
                 break;
             }
         }
@@ -115,19 +125,25 @@ foreach ($q as $row) {
             $law_school = '';
         }
 
+        foreach($html->find('.section-right__section') as $item)
+        {
+            if(strpos($item->innertext, '<h3>Office</h3>') !== false)
+            {
+                $primaryAddress = trim($item->find('h4', 0)->plaintext);
+                break;
+            }
+        }
+
         $jd_year = (int) @filter_var($law_school, FILTER_SANITIZE_NUMBER_INT);
 
-        $q = $pdo->prepare('INSERT INTO `people` VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
+        $q = $pdo->prepare('INSERT INTO `people` VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
         $q->execute(array(
             $values['names'],
             $values['email'],
-            $address,
-            $city,
-            $state,
-            $postalCode,
-            $country,
             $values['vCard'],
-            '',
+            sEncode($fullAddress),
+            $primaryAddress,
+            'https://www.linkedin.com/company/allen-&-overy/',
             $values['phone_numbers'],
             '',
             json_encode($education),
@@ -139,7 +155,7 @@ foreach ($q as $row) {
             json_encode($positions),
             json_encode(array('English')),
             $row['url'],
-            $values['description'],
+            sEncode($values['description']),
             time(),
             $image,
             $image,
@@ -153,6 +169,12 @@ foreach ($q as $row) {
 
     $q = $pdo->prepare('UPDATE `queue` SET `status`=\'complete\' WHERE `id`=?');
     $q->execute(array($row['id']));
+
+    unset($values);
+    unset($law_school);
+    unset($jd_year);
+    unset($fullAddress);
+    unset($primaryAddress);
 
 }
 

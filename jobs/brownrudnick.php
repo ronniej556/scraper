@@ -3,6 +3,9 @@ include '../config.php';
 include '../simple_html_dom.php';
 include '../../vCard.php';
 
+error_reporting(E_ALL);
+ini_set('display_errors', 1);
+
 $spider_name = 'brownrudnick';
 $firm_name = 'Brown Rudnick';
 $base_url = 'https://brownrudnick.com';
@@ -11,6 +14,9 @@ $q = $pdo->prepare('SELECT * FROM `queue` WHERE `status`=\'pending\' AND `spider
 $q->execute(array($spider_name));
 
 foreach ($q as $row) {
+
+    $fullAddress = '';
+    $primaryAddress = '';
 
     $data = fetch($row['url']);
     $html = str_get_html($data);
@@ -38,30 +44,20 @@ foreach ($q as $row) {
             $values['phone_numbers'] = '[]';
         }
 
-        if(!empty($vCard->adr['StreetAddress']))
-        {
-            $address = $vCard->adr['StreetAddress']; } else { $address = '';
+        if(!empty($vCard->adr['StreetAddress'])) { $fullAddress = $vCard->adr['StreetAddress']; }
+
+        if(!empty($vCard->adr['Locality'])) {
+            $fullAddress .= ', '.$vCard->adr['Locality'];
+            $primaryAddress = $vCard->adr['Locality'];
         }
 
-        if(!empty($vCard->adr['Locality']))
-        {
-            $city = $vCard->adr['Locality']; } else { $city = '';
+        if(!empty($vCard->adr['Region'])) {
+            $fullAddress .= ', '.$vCard->adr['Region'];
         }
 
-        if(!empty($vCard->adr['Region']))
-        {
-            $state = $vCard->adr['Region']; } else { $state = '';
-        }
+        if(!empty($vCard->adr['PostalCode'])) { $fullAddress .= ', '.$vCard->adr['PostalCode']; }
 
-        if(!empty($vCard->adr['PostalCode']))
-        {
-            $postalCode = $vCard->adr['PostalCode']; } else { $postalCode = '';
-        }
-
-        if(!empty($vCard->adr['Country']))
-        {
-            $country = $vCard->adr['Country']; } else { $country = '';
-        }
+        if(!empty($vCard->adr['Country'])) { $fullAddress .= ', '.$vCard->adr['Country']; }
 
         $education = array();
         if($html->find('.experience__wrapper .large-6', 0))
@@ -99,17 +95,19 @@ foreach ($q as $row) {
         $law_school = trim(explode('–', $education[0])[0]);
         $jd_year = (int) @filter_var($education[0], FILTER_SANITIZE_NUMBER_INT);
 
-        $q = $pdo->prepare('INSERT INTO `people` VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
+        if(empty($primaryAddress))
+        {
+            $primaryAddress = trim($html->find('a.link.inline__link', 0)->plaintext);
+        }
+
+        $q = $pdo->prepare('INSERT INTO `people` VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
         $q->execute(array(
             $values['names'],
             $values['email'],
-            $address,
-            $city,
-            $state,
-            $postalCode,
-            $country,
             $values['vCard'],
-            '',
+            $fullAddress,
+            $primaryAddress,
+            'https://www.linkedin.com/company/brown-rudnick/',
             $values['phone_numbers'],
             '',
             json_encode($education),
@@ -135,6 +133,12 @@ foreach ($q as $row) {
 
     $q = $pdo->prepare('UPDATE `queue` SET `status`=\'complete\' WHERE `id`=?');
     $q->execute(array($row['id']));
+
+    unset($values);
+    unset($law_school);
+    unset($jd_year);
+    unset($fullAddress);
+    unset($primaryAddress);
 
 }
 

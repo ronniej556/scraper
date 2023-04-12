@@ -15,6 +15,8 @@ $q->execute(array($spider_name));
 
 foreach ($q as $row) {
 
+    $fullAddress = '';
+
     $data = fetch($row['url']);
     $data = get_string_between($data, '</head>', '</body>').'</body>';
     $html = str_get_html($data);
@@ -23,6 +25,7 @@ foreach ($q as $row) {
 
     if($html->find('.profilecard__title', 0)->plaintext)
     {
+
         $values['photo'] = $html->find('.hero__image img', 0)->src;
         $values['names'] = json_encode(explode(' ', $html->find('.profilecard__title', 0)->plaintext));
         $values['email'] = get_string_between($data, '"email":"', '",');
@@ -168,55 +171,67 @@ foreach ($q as $row) {
         file_put_contents($spider_name.'_temp.vcf', file_get_contents($values['vCard']));
         $vCard = new vCard($spider_name.'_temp.vcf', false, array('Collapse' => true));
 
-        if(!empty($vCard->adr['StreetAddress'])) { $address = $vCard->adr['StreetAddress']; } else { $address = ''; }
+        if(!empty($vCard->adr['StreetAddress'])) { $fullAddress = $vCard->adr['StreetAddress']; }
 
-        if(!empty($vCard->adr['Locality'])) { $city = $vCard->adr['Locality']; } else { $city = ''; }
+        if(!empty($vCard->adr['Locality'])) {
+            $fullAddress .= ', '.$vCard->adr['Locality'];
+            $primaryAddress = $vCard->adr['Locality'];
+        }
 
-        if(!empty($vCard->adr['Region'])) { $state = $vCard->adr['Region']; } else { $state = ''; }
+        if(!empty($vCard->adr['Region'])) {
+            $fullAddress .= ', '.$vCard->adr['Region'];
+            $primaryAddress .= ', '.$vCard->adr['Region'];
+        }
 
-        if(!empty($vCard->adr['PostalCode'])) { $postalCode = $vCard->adr['PostalCode']; } else { $postalCode = ''; }
+        if(!empty($vCard->adr['PostalCode'])) { $fullAddress .= ', '.$vCard->adr['PostalCode']; }
 
-        if(!empty($vCard->adr['Country'])) { $country = $vCard->adr['Country']; } else { $country = ''; }
+        if(!empty($vCard->adr['Country'])) { $fullAddress .= ', '.$vCard->adr['Country']; }
 
-        $law_school_data = $education[0];
-        $law_school = explode(', ', $law_school_data)[0];
-        $jd_year = str_replace('-', '', (int) filter_var($law_school_data, FILTER_SANITIZE_NUMBER_INT));
+        if(isset($education[0]))
+        {
+            $law_school_data = $education[0];
+            $law_school = explode(', ', $law_school_data)[0];
+            $jd_year = str_replace('-', '', (int) filter_var($law_school_data, FILTER_SANITIZE_NUMBER_INT));
 
-        $q = $pdo->prepare('INSERT INTO `people` VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
-        $q->execute(array(
-            $values['names'],
-            $values['email'],
-            $address,
-            $city,
-            $state,
-            $postalCode,
-            $country,
-            $values['vCard'],
-            $values['LinkedIn'],
-            $values['phone_numbers'],
-            '',
-            $values['education'],
-            $values['bar_admissions'],
-            $values['court_admissions'],
-            $values['practice_areas'],
-            $values['acknowledgements'],
-            $values['memberships'],
-            $values['positions'],
-            $values['languages'],
-            $values['source'],
-            $values['description'],
-            time(),
-            json_decode($row['data'], 1)['image'],
-            $values['photo'],
-            $spider_name,
-            $firm_name,
-            $law_school,
-            $jd_year,
-            NULL
-        ));
+            $q = $pdo->prepare('INSERT INTO `people` VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
+            $q->execute(array(
+                $values['names'],
+                $values['email'],
+                $values['vCard'],
+                $fullAddress,
+                $primaryAddress,
+                $values['LinkedIn'],
+                $values['phone_numbers'],
+                '',
+                $values['education'],
+                $values['bar_admissions'],
+                $values['court_admissions'],
+                $values['practice_areas'],
+                $values['acknowledgements'],
+                $values['memberships'],
+                $values['positions'],
+                $values['languages'],
+                $values['source'],
+                $values['description'],
+                time(),
+                json_decode($row['data'], 1)['image'],
+                $values['photo'],
+                $spider_name,
+                $firm_name,
+                $law_school,
+                $jd_year,
+                NULL
+            ));
+        }
 
         $q = $pdo->prepare('UPDATE `queue` SET `status`=\'complete\' WHERE `id`=?');
         $q->execute(array($row['id']));
+
+        unset($values);
+        unset($law_school);
+        unset($jd_year);
+        unset($fullAddress);
+        unset($primaryAddress);
 
     }
 

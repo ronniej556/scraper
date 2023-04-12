@@ -13,7 +13,8 @@ $q->execute(array($spider_name));
 $q = $pdo->prepare('DELETE FROM `people` WHERE `spider_name`=?');
 $q->execute(array($spider_name));
 
-$data = fetch($base_url.'/find/professionals/');
+$data = file_get_contents($base_url.'/find/professionals/');
+
 $data = get_string_between($data, '</head>', '</body>').'</body>';
 $html = str_get_html($data);
 

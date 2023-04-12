@@ -26,7 +26,7 @@ for ($i=1; $i < 7; $i++) {
         {
             if(isset($item->find('img', 0)->src))
             {
-                $image = $base_url.$item->find('img', 0)->src;
+                $image = $item->find('img', 0)->src;
             }
             else
             {

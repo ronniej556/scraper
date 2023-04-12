@@ -15,164 +15,193 @@ $q->execute(array($spider_name));
 
 foreach ($q as $row) {
 
+    $fullAddress = '';
+    $primaryAddress = '';
+
     $data = fetch($row['url']);
     $html = str_get_html($data);
 
     $pData = json_decode($row['data'], 1);
-    $pData['phone'] = str_replace('T', '', $pData['phone']);
 
     $vCard_link = $row['url'].'?vcard=1';
 
-    if(!empty($vCard_link))
+    if(!empty($vCard_link) && !empty($pData['phone']))
     {
+
+        foreach($html->find('a') as $link)
+        {
+            if(strpos(strtolower($link->href), 'linkedin') !== false)
+            {
+                $linkedIn = $link->href;
+                break;
+            }
+        }
+        if(empty($linkedIn)) { $linkedIn = 'https://www.linkedin.com/company/ropes-&-gray-llp/'; }
+
+        $pData['phone'] = str_replace('T', '', $pData['phone']);
 
         $values['names'] = json_encode(explode(' ', $pData['name']));
         $values['email'] = $pData['email'];
         $values['vCard'] = $vCard_link;
 
-        file_put_contents($spider_name.'_temp.vcf', file_get_contents($values['vCard']));
-        $vCard = new vCard($spider_name.'_temp.vcf', false, array('Collapse' => true));
+        $f = fetch($values['vCard']);
 
-        if(isset($vCard->tel[0]['Value']))
+        if(strpos($f, '<head>') === false)
         {
-            $values['phone_numbers'] = json_encode(array($vCard->tel[0]['Value']));
-        }
-        else
-        {
-            $values['phone_numbers'] = json_encode(array($pData['phone']));
-        }
 
-        if(!empty($vCard->adr['StreetAddress']))
-        {
-            $address = $vCard->adr['StreetAddress']; } else { $address = '';
-        }
+            file_put_contents($spider_name.'_temp.vcf', $f);
+            $vCard = new vCard($spider_name.'_temp.vcf', false, array('Collapse' => true));
 
-        if(!empty($vCard->adr['Locality']))
-        {
-            $city = $vCard->adr['Locality']; } else { $city = '';
-        }
-
-        if(!empty($vCard->adr['Region']))
-        {
-            $state = $vCard->adr['Region']; } else { $state = '';
-        }
-
-        if(!empty($vCard->adr['Country']))
-        {
-            $country = $vCard->adr['Country']; } else { $country = '';
-        }
-
-        if(!empty($vCard->adr['PostalCode']))
-        {
-            $postalCode = $vCard->adr['PostalCode']; } else { $postalCode = '';
-        }
-
-        if(!is_numeric($postalCode))
-        {
-            $postalCode = '';
-        }
-
-        $education = array();
-        if($html->find('#education-content ul', 0))
-        {
-            $list = $html->find('#education-content ul', 0);
-            foreach($list->find('li') as $item)
+            if(isset($vCard->tel[0]['Value']))
             {
-                $education[] = trim($item->plaintext);
+                $values['phone_numbers'] = json_encode(array($vCard->tel[0]['Value']));
             }
-        }
-
-        $bar_admissions = array();
-        $court_admissions = array();
-
-        if($html->find('#admissions-content ul', 0))
-        {
-            $list = $html->find('#admissions-content ul', 0);
-            foreach($list->find('li') as $item)
+            else
             {
-                if(strpos(strtolower($item->plaintext), 'court') !== false)
+                $values['phone_numbers'] = json_encode(array($pData['phone']));
+            }
+
+            if(!empty($vCard->adr['StreetAddress'])) { $fullAddress = $vCard->adr['StreetAddress']; }
+
+            if(!empty($vCard->adr['Locality'])) {
+                $fullAddress .= ', '.$vCard->adr['Locality'];
+            }
+
+            if(!empty($vCard->adr['Region'])) {
+                $fullAddress .= ', '.$vCard->adr['Region'];
+            }
+
+            if(!empty($vCard->adr['PostalCode'])) { $fullAddress .= ', '.$vCard->adr['PostalCode']; }
+
+            if(!empty($vCard->adr['Country'])) { $fullAddress .= ', '.$vCard->adr['Country']; }
+
+            if(empty($fullAddress))
+            {
+                $fullAddress = '';
+            }
+
+            $education = array();
+            if($html->find('#education-content ul', 0))
+            {
+                $list = $html->find('#education-content ul', 0);
+                foreach($list->find('li') as $item)
                 {
-                    $court_admissions[] = trim($item->plaintext);
-                }
-                else
-                {
-                    $bar_admissions[] = trim($item->plaintext);
+                    $education[] = trim($item->plaintext);
                 }
             }
-        }
 
-        $memberships = array();
+            $bar_admissions = array();
+            $court_admissions = array();
 
-        $languages = array();
-        $languages[] = 'English';
-
-        $practice_areas = array();
-        if($html->find('#practices-content ul', 0))
-        {
-            $list = $html->find('#practices-content ul', 0);
-            foreach($list->find('li') as $item)
+            if($html->find('#admissions-content ul', 0))
             {
-                $practice_areas[] = trim($item->plaintext);
+                $list = $html->find('#admissions-content ul', 0);
+                foreach($list->find('li') as $item)
+                {
+                    if(strpos(strtolower($item->plaintext), 'court') !== false)
+                    {
+                        $court_admissions[] = trim($item->plaintext);
+                    }
+                    else
+                    {
+                        $bar_admissions[] = trim($item->plaintext);
+                    }
+                }
+            }
+
+            $memberships = array();
+
+            $languages = array();
+            $languages[] = 'English';
+
+            $practice_areas = array();
+            if($html->find('#practices-content ul', 0))
+            {
+                $list = $html->find('#practices-content ul', 0);
+                foreach($list->find('li') as $item)
+                {
+                    $practice_areas[] = trim($item->plaintext);
+                }
+            }
+
+            $positions = array();
+            $positions[] = $pData['title'];
+
+            $values['description'] = trim(get_string_between($html->find('#main-content .column-inner', 0)->innertext, '</hgroup>', '<ul class="nav nav-tabs hidden-phone">'));
+
+            foreach($education as $value)
+            {
+                $school = strtolower(preg_replace('/[^A-Za-z0-9\-]/', ' ', $value));
+                if(strpos($school, 'jd') !== false || strpos($school, 'doctor') !== false)
+                {
+                    $law_school = $value;
+                    break;
+                }
+            }
+
+            if(empty($law_school))
+            {
+                $law_school = '';
+            }
+
+            $jd_year = (int) @filter_var($law_school, FILTER_SANITIZE_NUMBER_INT);
+
+            foreach($html->find('.module-content-inner') as $item)
+            {
+                foreach($item->find('a') as $link)
+                {
+                    if(strpos($link->href, '/en/locations/') !== false)
+                    {
+                        $primaryAddress = $link->plaintext;
+                        break;
+                    }
+                }
+            }
+
+            if(!empty($values['email']))
+            {
+                $q = $pdo->prepare('INSERT INTO `people` VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
+                $q->execute(array(
+                    $values['names'],
+                    $values['email'],
+                    $values['vCard'],
+                    @$fullAddress,
+                    $primaryAddress,
+                    $linkedIn,
+                    $values['phone_numbers'],
+                    '',
+                    json_encode($education),
+                    json_encode($bar_admissions), //bar admissions
+                    json_encode($court_admissions), //court admissions
+                    json_encode($practice_areas),
+                    '[]',
+                    json_encode($memberships),
+                    json_encode($positions),
+                    json_encode($languages),
+                    $row['url'],
+                    $values['description'],
+                    time(),
+                    $pData['image'],
+                    $pData['image'],
+                    $spider_name,
+                    $firm_name,
+                    $law_school,
+                    str_replace('-', '', $jd_year),
+                    NULL
+                ));
             }
         }
 
-        $positions = array();
-        $positions[] = $pData['title'];
-
-        $values['description'] = trim(get_string_between($html->find('#main-content .column-inner', 0)->innertext, '</hgroup>', '<ul class="nav nav-tabs hidden-phone">'));
-
-        foreach($education as $item)
-        {
-            if(strpos(preg_replace('/[^A-Za-z0-9\-]/', '', $item), 'JD') !== false)
-            {
-                $law_school = $item;
-                break;
-            }
-        }
-
-        if(empty($law_school))
-        {
-            $law_school = '';
-        }
-
-        $jd_year = (int) @filter_var($law_school, FILTER_SANITIZE_NUMBER_INT);
-
-        $q = $pdo->prepare('INSERT INTO `people` VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)');
-        $q->execute(array(
-            $values['names'],
-            $values['email'],
-            $address,
-            $city,
-            $state,
-            $postalCode,
-            $country,
-            $values['vCard'],
-            '',
-            $values['phone_numbers'],
-            '',
-            json_encode($education),
-            json_encode($bar_admissions), //bar admissions
-            json_encode($court_admissions), //court admissions
-            json_encode($practice_areas),
-            '[]',
-            json_encode($memberships),
-            json_encode($positions),
-            json_encode($languages),
-            $row['url'],
-            $values['description'],
-            time(),
-            $pData['image'],
-            $pData['image'],
-            $spider_name,
-            $firm_name,
-            $law_school,
-            str_replace('-', '', $jd_year),
-            NULL
-        ));
     }
 
     $q = $pdo->prepare('UPDATE `queue` SET `status`=\'complete\' WHERE `id`=?');
     $q->execute(array($row['id']));
+
+    unset($values);
+    unset($law_school);
+    unset($jd_year);
+    unset($fullAddress);
+    unset($primaryAddress);
 
 }
 

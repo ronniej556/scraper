@@ -19,10 +19,10 @@ if(isset($_SERVER['REQUEST_SCHEME']) && $_SERVER['REQUEST_SCHEME'] !== 'https')
 
 $dir = realpath(dirname(__FILE__));
 
-$dbhost = "24.199.117.42";
-$dbname = "sotodata";
-$dbuser = "amos";
-$dbpass = "Amoslkj123456";
+$dbhost = "localhost";
+$dbname = "attorneys_new";
+$dbuser = "root";
+$dbpass = "";
 
 function send_mail($to, $subject, $message, $from)
 {
@@ -43,7 +43,7 @@ function firstXChars($string, $chars = 500)
     return @$matches[0];
 }
 
-$pdo = new PDO("mysql:host=$dbhost;dbname=$dbname;port=3306", $dbuser, $dbpass, array(PDO::ATTR_PERSISTENT => false));
+$pdo = new PDO("mysql:host=$dbhost;dbname=$dbname;port=3306;charset=utf8mb4", $dbuser, $dbpass, array(PDO::ATTR_PERSISTENT => false));
 
 $script_location = ''; //for folders /test or /test1/test2
 
@@ -113,7 +113,7 @@ function fetch($url)
 
     $url = $url;
     $proxy = 'proxy.crawlera.com:8011';
-    $proxy_auth = '29932fcfaf0f45e3832fe107c2f68349:';
+    $proxy_auth = '7f36ff99ef6b44dab25d69d09c87bb94:';
 
     curl_setopt($ch, CURLOPT_URL, $url);
     curl_setopt($ch, CURLOPT_PROXY, $proxy);
@@ -121,6 +121,7 @@ function fetch($url)
     curl_setopt($ch, CURLOPT_HEADER, 0);
     curl_setopt($ch, CURLOPT_FOLLOWLOCATION, 1);
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
+    curl_setopt($ch, CURLOPT_ENCODING , '');
     curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 30);
     curl_setopt($ch, CURLOPT_TIMEOUT, 180);
     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 0); //required for HTTPS
@@ -145,15 +146,18 @@ function fetch_post($url, $content)
 
     $url = $url;
     $proxy = 'proxy.crawlera.com:8011';
-    $proxy_auth = '29932fcfaf0f45e3832fe107c2f68349:';
+    $proxy_auth = '7f36ff99ef6b44dab25d69d09c87bb94:';
 
     curl_setopt($ch, CURLOPT_URL, $url);
     curl_setopt($ch, CURLOPT_PROXY, $proxy);
     curl_setopt($ch, CURLOPT_PROXYUSERPWD, $proxy_auth);
     curl_setopt($ch, CURLOPT_HEADER, 0);
     curl_setopt($ch, CURLOPT_FOLLOWLOCATION, 1);
+    curl_setopt($ch, CURLOPT_HTTPHEADER, array('Content-Type:application/json'));
     curl_setopt($ch, CURLOPT_RETURNTRANSFER, 1);
     curl_setopt($ch, CURLOPT_CONNECTTIMEOUT, 30);
+    curl_setopt($ch, CURLOPT_ENCODING , '');
+    curl_setopt($ch, CURLOPT_POST, 1);
     curl_setopt($ch, CURLOPT_TIMEOUT, 180);
     curl_setopt($ch, CURLOPT_POSTFIELDS, $content);
     curl_setopt($ch, CURLOPT_SSL_VERIFYPEER, 0); //required for HTTPS
@@ -170,6 +174,30 @@ function fetch_post($url, $content)
     }
 
     curl_close($ch);
+}
+
+function checkExternalFile($url)
+{
+    $ch = curl_init($url);
+    curl_setopt($ch, CURLOPT_NOBODY, true);
+    curl_exec($ch);
+    $retCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    return $retCode;
+}
+
+function sEncode($string)
+{
+    return iconv(mb_detect_encoding($string, mb_detect_order(), true), "UTF-8", $string);
+}
+
+function cfDecodeEmail($encodedString){
+  $k = hexdec(substr($encodedString,0,2));
+  for($i=2,$email='';$i<strlen($encodedString)-1;$i+=2){
+    $email.=chr(hexdec(substr($encodedString,$i,2))^$k);
+  }
+  return $email;
 }
 
 ?>
