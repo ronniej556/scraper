@@ -9,7 +9,7 @@ $values = array();
 //characters A-Z
 foreach (range('A', 'Z') as $char) {
 
-    $data = fetch($base_url.'/_site/search?l='.$char.'&f=0&v=attorney');
+    $data = fetch($base_url.'/_site/search?l='.$char.'&f=0&v=attorney&s=99999');
     $data = json_decode($data, 1)['hits']['ALL']['hits'];
 
     foreach($data as $item)

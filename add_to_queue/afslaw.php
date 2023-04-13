@@ -14,9 +14,9 @@ $q = $pdo->prepare('DELETE FROM `people` WHERE `spider_name`=?');
 $q->execute(array($spider_name));
 
 //characters A-Z
-foreach (range('A', 'Z') as $char) {
-
-    $data = fetch($base_url.'/attorneys?glossary='.$char.'&job_title=All&industries_practices=All&bar_admissions=All&court_admissions=All&office_locations=All&international=All');
+for ($i=0; $i <= 28 ; $i++) { 
+    
+    $data = fetch($base_url.'/attorneys?job_title=All&industries_practices=All&bar_admissions=All&court_admissions=All&office_locations=All&international=All&page='.$i);
     $data = get_string_between($data, '</head>', '</body>').'</body>';
     $html = str_get_html($data);
 
@@ -26,7 +26,6 @@ foreach (range('A', 'Z') as $char) {
         $q->execute(array($spider_name, $base_url.$item->find('a', 0)->href, '', 'pending', time(), NULL));
 
     }
-
 
 }
 
